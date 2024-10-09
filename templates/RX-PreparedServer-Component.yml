@@ -3,7 +3,7 @@ spec:
     stagePreparedServer:
       default: RX-PreparedServer
 ---
-RX-CheckVariables-Component:
+RX-PreparedServer-Component:
   stage: $[[ inputs.stagePreparedServer ]]
   script:
     # Check or create Group Folder
