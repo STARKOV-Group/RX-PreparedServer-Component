@@ -1,0 +1,47 @@
+spec:
+  inputs:
+    stage:
+      default: RX-PreparedServer
+---
+RX-CheckVariables-Component:
+  stage: $[[ inputs.stage ]]
+  script:
+    # Check or create Group Folder
+    - if ( Test-Path $ProjectsFolderPath\$CI_PROJECT_NAMESPACE ) { echo "Group folder founded" } else { mkdir $ProjectsFolderPath\$CI_PROJECT_NAMESPACE; echo "Group folder created" }
+    # Crate or update Group DDS
+    - if ( Test-Path $ProjectsFolderPath\$CI_PROJECT_NAMESPACE\DDS\$RXVERSION ) { echo "DDSs project founded" } else { Copy-Item -Path $DDSFolderPath\$RXVERSION\ -Destination $ProjectsFolderPath\$CI_PROJECT_NAMESPACE\DDS\$RXVERSION -Force -Recurse; echo "DDS copied" }
+    # Create or update Group DT
+    - if ( Test-Path $DTConfigPath ) { echo "DT project founded" } else { Copy-Item -Path $DTFolderPath\$RXVERSION\ -Destination $DTConfigPath -Force -Recurse; echo "DT copied" }
+    # Clear old config
+    - if ( Test-Path $DDSConfigPath\_ConfigSettings.xml ) { Remove-Item $DDSConfigPath\_ConfigSettings.xml; echo "Old config deleted" }
+    # Check or create Project Folder
+    - if ( Test-Path $GitProjectFolder ) { echo "Project folder founded" } else { mkdir $GitProjectFolder; echo "Project folder created" }
+    # Create or Update Repos
+      # Clear Git Folder
+    - Get-ChildItem -Path $GitProjectFolder | Remove-Item -Recurse -Force
+      #  Clone Repos
+    - $Repos = $Repositories.split(',')
+    - $RepoConfigString = ''
+    - foreach ($Repo in $Repos) 
+      { 
+        $RepoLayer = $Repo.split('|')[0].Trim();
+        $Repo = $Repo.split('|')[-1].Trim(); 
+        $RepoProjectName = $Repo.split('/')[-1];
+        $RepoFolderPath = $GitProjectFolder + "\" + $RepoProjectName;
+
+        $TakeDefBranch = 0;
+        if (git ls-remote --heads $Repo refs/heads/$CI_COMMIT_BRANCH) { } else { echo "Not Found branch ${CI_COMMIT_BRANCH} in ${Repo} take default"; $TakeDefBranch = 1 };
+        if ($TakeDefBranch) { git clone $Repo $RepoFolderPath } else { git clone --branch $CI_COMMIT_BRANCH $Repo $RepoFolderPath; };
+        if ( Test-Path $RepoFolderPath ) { } else { echo "Repo project folder not created. Repo - ${Repo}"; exit 1 };
+
+        $ConfigString = '<repository folderName="{0}" solutionType="{1}" url="{2}"/>' -f $RepoProjectName, $RepoLayer, $Repo;
+        $RepoConfigString = $RepoConfigString + [Environment]::NewLine + $ConfigString;
+      }
+
+    # Create config DDS
+    - Copy-Item -Path $DDSConfigPath\_ConfigSettings.xml.gitrunner $DDSConfigPath\_ConfigSettings.xml
+    - (Get-Content $DDSConfigPath\_ConfigSettings.xml).Replace('%reposPath', $GitProjectFolder).Replace('%repos', $RepoConfigString) | Set-Content $DDSConfigPath\_ConfigSettings.xml
+
+    # Create config DT
+    - Copy-Item -Path $DTConfigPath\_ConfigSettings.xml.gitrunner $DTConfigPath\_ConfigSettings.xml
+    - (Get-Content $DTConfigPath\_ConfigSettings.xml).Replace('%deployIpServer', $DeployIpServer).Replace('%webProtocol', $WebProtocol).Replace('%serverHttpsPort', $ServerHttpsPort).Replace('%serverHttpPort', $ServerHttpPort) | Set-Content $DTConfigPath\_ConfigSettings.xml
