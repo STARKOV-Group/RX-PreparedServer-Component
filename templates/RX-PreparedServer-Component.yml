@@ -1,10 +1,10 @@
 spec:
   inputs:
-    stagePreparedServer:
+    stage:
       default: RX-PreparedServer
 ---
 RX-PreparedServer-Component:
-  stage: $[[ inputs.stagePreparedServer ]]
+  stage: $[[ inputs.stage ]]
   script:
     # Check or create Group Folder
     - if ( Test-Path $ProjectsFolderPath\$CI_PROJECT_NAMESPACE ) { echo "Group folder founded" } else { mkdir $ProjectsFolderPath\$CI_PROJECT_NAMESPACE; echo "Group folder created" }
