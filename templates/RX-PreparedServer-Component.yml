@@ -2,9 +2,13 @@ spec:
   inputs:
     stage:
       default: RX-PreparedServer
+    rules:
+      default: '"true" == "true"'
 ---
 RX-PreparedServer-Component:
   stage: $[[ inputs.stage ]]
+  rules: 
+    - if: $[[ inputs.rules ]]
   script:
     # Check or create Group Folder
     - if ( Test-Path $ProjectsFolderPath\$CI_PROJECT_NAMESPACE ) { echo "Group folder founded" } else { mkdir $ProjectsFolderPath\$CI_PROJECT_NAMESPACE; echo "Group folder created" }
