@@ -28,14 +28,17 @@ RX-PreparedServer-Component:
     - $RepoConfigString = ''
     - foreach ($Repo in $Repos) 
       { 
-        $RepoLayer = $Repo.split('|')[0].Trim();
-        $Repo = $Repo.split('|')[-1].Trim(); 
+        $RepoInfo = $Repo.split('|');
+        $RepoLayer = $RepoInfo[0].Trim();
+        $Repo = $RepoInfo[1].Trim();
+        if ($RepoInfo.Count -gt 2) { $Branch = $RepoInfo[2].Trim(); } else { $Branch = $CI_PROJECT_NAMESPACE; };
+
         $RepoProjectName = $Repo.split('/')[-1];
         $RepoFolderPath = $GitProjectFolder + "\" + $RepoProjectName;
 
         $TakeDefBranch = 0;
-        if (git ls-remote --heads $Repo refs/heads/$CI_COMMIT_BRANCH) { } else { echo "Not Found branch ${CI_COMMIT_BRANCH} in ${Repo} take default"; $TakeDefBranch = 1 };
-        if ($TakeDefBranch) { git clone $Repo $RepoFolderPath } else { git clone --branch $CI_COMMIT_BRANCH $Repo $RepoFolderPath; };
+        if (git ls-remote --heads $Repo refs/heads/$Branch) { } else { echo "Not Found branch ${Branch} in ${Repo} take default"; $TakeDefBranch = 1 };
+        if ($TakeDefBranch) { git clone $Repo $RepoFolderPath } else { git clone --branch $Branch $Repo $RepoFolderPath; };
         if ( Test-Path $RepoFolderPath ) { } else { echo "Repo project folder not created. Repo - ${Repo}"; exit 1 };
 
         $ConfigString = '<repository folderName="{0}" solutionType="{1}" url="{2}"/>' -f $RepoProjectName, $RepoLayer, $Repo;
