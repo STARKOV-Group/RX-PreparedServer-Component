@@ -31,7 +31,7 @@ RX-PreparedServer-Component:
         $RepoInfo = $Repo.split('|');
         $RepoLayer = $RepoInfo[0].Trim();
         $Repo = $RepoInfo[1].Trim();
-        if ($RepoInfo.Count -gt 2) { $Branch = $RepoInfo[2].Trim(); } else { $Branch = $CI_PROJECT_NAMESPACE; };
+        if ($RepoInfo.Count -gt 2) { $Branch = $RepoInfo[2].Trim(); } else { $Branch = $CI_COMMIT_BRANCH; };
 
         $RepoProjectName = $Repo.split('/')[-1];
         $RepoFolderPath = $GitProjectFolder + "\" + $RepoProjectName;
