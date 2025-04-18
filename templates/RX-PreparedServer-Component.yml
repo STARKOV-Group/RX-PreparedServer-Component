@@ -51,4 +51,5 @@ RX-PreparedServer-Component:
 
     # Create config DT
     - Copy-Item -Path $DTConfigPath\_ConfigSettings.xml.gitrunner $DTConfigPath\_ConfigSettings.xml
+    - $DeployIpServer = Get-Variable -ValueOnly "$($DeployDestination)DeployIpServer"
     - (Get-Content $DTConfigPath\_ConfigSettings.xml).Replace('%deployIpServer', $DeployIpServer).Replace('%webProtocol', $WebProtocol).Replace('%serverHttpsPort', $ServerHttpsPort).Replace('%serverHttpPort', $ServerHttpPort) | Set-Content $DTConfigPath\_ConfigSettings.xml
