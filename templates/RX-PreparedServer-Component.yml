@@ -6,10 +6,41 @@ spec:
       default: '"true" == "true"'
 ---
 RX-PreparedServer-Component:
+  tags:
+    - $RunnerTags
   stage: $[[ inputs.stage ]]
   rules: 
     - if: $[[ inputs.rules ]]
   script:
+    # XML functions
+    - function XmlSetVarElementsValues {
+        param (
+          [xml]$XmlConfig,
+          [System.Collections.Hashtable]$ElementsList
+        )
+
+        $elementsList.GetEnumerator().ForEach({
+          $element = ($xmlConfig | Select-Xml -XPath "//var[@name='$($_.Key)']").Node;
+          $element.SetAttribute('value', $_.Value);
+        })
+      }
+    - function XmlCreateRepositoryElement {
+        param (
+          [xml]$XmlConfig,
+          [string]$FolderName,
+          [string]$SolutionType,
+          [string]$url
+        )
+
+        $child = $XmlConfig.CreateElement("repository");
+        $child.SetAttribute('folderName', $FolderName);
+        $child.SetAttribute('solutionType', $SolutionType);
+        $child.SetAttribute('url', $url);
+        ($XmlConfig | Select-Xml -XPath "//block[@name='REPOSITORIES']").Node.AppendChild($child);
+      }
+
+    # Переопределение путей с учетом веток. При изменении логики также поменять в BuildPackage, PreparedServer, DeployDTPackage, UploadPackage и VersionUp компонентах
+    - $GitProjectFolder = "$GitProjectFolder\" + ($CI_COMMIT_BRANCH -replace '\W', '_')
     # Check or create Group Folder
     - if ( Test-Path $ProjectsFolderPath\$CI_PROJECT_NAMESPACE ) { echo "Group folder founded" } else { mkdir $ProjectsFolderPath\$CI_PROJECT_NAMESPACE; echo "Group folder created" }
     # Crate or update Group DDS
@@ -20,10 +51,29 @@ RX-PreparedServer-Component:
     - if ( Test-Path $DDSConfigPath\_ConfigSettings.xml ) { Remove-Item $DDSConfigPath\_ConfigSettings.xml; echo "Old config deleted" }
     # Check or create Project Folder
     - if ( Test-Path $GitProjectFolder ) { echo "Project folder founded" } else { mkdir $GitProjectFolder; echo "Project folder created" }
-    # Create or Update Repos
-      # Clear Git Folder
-    - Get-ChildItem -Path $GitProjectFolder | Remove-Item -Recurse -Force
-      #  Clone Repos
+    # Check or create Logs Folder
+    - if ( Test-Path $LogsPath ) { echo "Logs folder found" } else { mkdir $LogsPath; echo "Logs folder created" }
+    # Clear Logs Folder
+    - Get-ChildItem -Path $LogsPath | Remove-Item -Recurse -Force
+
+    # Create config DDS
+    - if (-not (Test-Path $DDSConfigPath\_ConfigSettings.xml.example))
+      {
+        if (-not (Test-Path $DDSFolderPath\_ConfigSettings.xml.example))
+        {
+          echo "Example DDS config not found";
+          exit 1;
+        }
+        Copy-Item -Path $DDSFolderPath\_ConfigSettings.xml.example $DDSConfigPath\_ConfigSettings.xml.example;
+      }
+    - Copy-Item -Path $DDSConfigPath\_ConfigSettings.xml.example $DDSConfigPath\_ConfigSettings.xml
+    - $DDSconfigContent = [xml](Get-Content $DDSConfigPath\_ConfigSettings.xml)
+    - $DDSElementsList = @{"LOGS_PATH" = $LogsPath; "GIT_ROOT_DIRECTORY" = $GitProjectFolder}
+    - XmlSetVarElementsValues -XmlConfig $DDSconfigContent -ElementsList $DDSElementsList
+    - $reposBlock = ($DDSconfigContent | Select-Xml -XPath "//block[@name='REPOSITORIES']").Node
+    - $reposBlock.InnerText = ""
+    
+    #  Clone Repos and fill DDS config REPOSITORIES element
     - $Repos = $Repositories.split(',')
     - $RepoConfigString = ''
     - foreach ($Repo in $Repos) 
@@ -36,20 +86,52 @@ RX-PreparedServer-Component:
         $RepoProjectName = $Repo.split('/')[-1];
         $RepoFolderPath = $GitProjectFolder + "\" + $RepoProjectName;
 
-        $TakeDefBranch = 0;
-        if (git ls-remote --heads $Repo refs/heads/$Branch) { } else { echo "Not Found branch ${Branch} in ${Repo} take default"; $TakeDefBranch = 1 };
-        if ($TakeDefBranch) { git clone $Repo $RepoFolderPath } else { git clone --branch $Branch $Repo $RepoFolderPath; };
+        XmlCreateRepositoryElement -XmlConfig $DDSconfigContent -FolderName $RepoProjectName -SolutionType $RepoLayer -url $Repo;
+
+        if (git ls-remote --heads $Repo refs/heads/$Branch) { } else { echo "Not Found branch ${Branch} in ${Repo}"; exit 1 };
+        if ( Test-Path $RepoFolderPath )
+        {
+          echo "Папка локального репозитория найдена";
+          cd $RepoFolderPath;
+          if (git rev-parse --is-inside-work-tree)
+          {
+            echo "Локальный репозиторий найден. Сбрасываем ветку на внешнюю";
+            git fetch origin;
+            git checkout -b $Branch --track origin/$Branch;
+            git reset --hard origin/$Branch;
+          }
+          else
+          {
+            echo "Локальный репозиторий не найден. Клонируем внешний";
+            git clone --branch $Branch $Repo $RepoFolderPath;
+          }
+        }
+        else
+        {
+          echo "Папка локального репозитория не найдена. Клонируем внешний";
+          git clone --branch $Branch $Repo $RepoFolderPath;
+        };
+
         if ( Test-Path $RepoFolderPath ) { } else { echo "Repo project folder not created. Repo - ${Repo}"; exit 1 };
 
         $ConfigString = '<repository folderName="{0}" solutionType="{1}" url="{2}"/>' -f $RepoProjectName, $RepoLayer, $Repo;
         $RepoConfigString = $RepoConfigString + [Environment]::NewLine + $ConfigString;
       }
-
-    # Create config DDS
-    - Copy-Item -Path $DDSConfigPath\_ConfigSettings.xml.gitrunner $DDSConfigPath\_ConfigSettings.xml
-    - (Get-Content $DDSConfigPath\_ConfigSettings.xml).Replace('%reposPath', $GitProjectFolder).Replace('%repos', $RepoConfigString) | Set-Content $DDSConfigPath\_ConfigSettings.xml
+    - $DDSconfigContent.Save($DDSConfigPath+"\_ConfigSettings.xml")
 
     # Create config DT
-    - Copy-Item -Path $DTConfigPath\_ConfigSettings.xml.gitrunner $DTConfigPath\_ConfigSettings.xml
+    - if (-not (Test-Path $DTConfigPath\_ConfigSettings.xml.example))
+      {
+        if (-not (Test-Path $DTFolderPath\_ConfigSettings.xml.example))
+        {
+          echo "Example DTCore config not found";
+          exit 1;
+        }
+        Copy-Item -Path $DTFolderPath\_ConfigSettings.xml.example $DTConfigPath\_ConfigSettings.xml.example;
+      }
+    - Copy-Item -Path $DTConfigPath\_ConfigSettings.xml.example $DTConfigPath\_ConfigSettings.xml
     - $DeployIpServer = Get-Variable -ValueOnly "$($DeployDestination)DeployIpServer"
-    - (Get-Content $DTConfigPath\_ConfigSettings.xml).Replace('%deployIpServer', $DeployIpServer).Replace('%webProtocol', $WebProtocol).Replace('%serverHttpsPort', $ServerHttpsPort).Replace('%serverHttpPort', $ServerHttpPort) | Set-Content $DTConfigPath\_ConfigSettings.xml
+    - $DTconfigContent = [xml](Get-Content $DTConfigPath\_ConfigSettings.xml)
+    - $DTElementsList = @{"LOGS_PATH" = $LogsPath; "SERVER_ROOT" = $DeployIpServer; "WEB_PROTOCOL" = $WebProtocol; "SERVER_HTTPS_PORT" = $ServerHttpsPort; "SERVER_HTTP_PORT" = $ServerHttpPort}
+    - XmlSetVarElementsValues -XmlConfig $DTconfigContent -ElementsList $DTElementsList
+    - $DTconfigContent.Save($DTConfigPath+"\_ConfigSettings.xml")
