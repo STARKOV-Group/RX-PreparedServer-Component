@@ -1,10 +1,10 @@
 # Подготовка сервера (RX PreparedServer Component)
 
-#### Описание:
+## Описание:
 
 Подготовка сервера для сборки пакета. Создание недостающих директорий, очистка существующих директорий, обновление конфигурации DDS согласно указанным переменным, подтягивание указанных веток гита, создание xml для создания пакета.
 
-##### Логика:
+### Логика:
 
 Указывает теги для джобов из $[RunnerTags](https://github.com/STARKOV-Group/Completed-RXDTDeploy-Component#runnertags)
 
@@ -32,11 +32,11 @@
 Создает конфигурационный файл для DT из примера по адресу $[DTConfigPath](https://github.com/STARKOV-Group/Completed-RXDTDeploy-Component#dtconfigpath)\\\_ConfigSettings.xml.example или $[DTFolderPath](https://github.com/STARKOV-Group/Completed-RXDTDeploy-Component#dtfolderpath)\\\_ConfigSettings.xml.example  
 И заполняет его данными, указанными в параметрах ([DeployDestination](https://github.com/STARKOV-Group/Completed-RXDTDeploy-Component#deploydestination))DeployIpServer, [LogsPath](https://github.com/STARKOV-Group/Completed-RXDTDeploy-Component#logspath), [WebProtocol](https://github.com/STARKOV-Group/Completed-RXDTDeploy-Component#webprotocol), [ServerHttpsPort](https://github.com/STARKOV-Group/Completed-RXDTDeploy-Component#serverhttpsport), [ServerHttpPort](https://github.com/STARKOV-Group/Completed-RXDTDeploy-Component#serverhttpport)
 
-#### Переменные:
+## Переменные:
 
-##### Пользовательские настройки
+### Пользовательские настройки
 
-##### Repositories
+### Repositories
 
 **Описание:** Список репозиториев в формате: Слой | Ссылка на репозиторий (ssh или http) | ветка , (если не последний)  
 **Примечание**: Эту переменную нужно указывать в [основном компоненте](https://github.com/STARKOV-Group/Completed-RXDTDeploy-Component)  
@@ -44,10 +44,9 @@
 **Пример:**  Work | ssh://git@git.starkovgrp.ru:2224/anetskih/aai-edu-25.2.git | master,  
  Base | ssh://git@git.starkovgrp.ru:2224/anetskih/aai-edu-25.2-base.git | main
 
-##### DeployIpServer
+### DeployIpServer
 
 **Описание:** Адрес сервера, на который будет производится публикация  
 **Обязательность:** Да  
 **Примечание**: Не указывать напрямую, а [создать переменную в проекте](https://docs.gitlab.com/ci/variables/#define-a-cicd-variable-in-the-ui)  
-
 **Пример:** 10.9.3.62
